@@ -11,6 +11,7 @@ A comprehensive Python-based stock analysis tool that fetches market data from m
 - **Stock Comparison**: Correlation analysis and multi-stock comparison
 - **Trading Signals**: Automated buy/sell signal generation based on indicators and patterns
 - **Entry/Exit Levels**: Calculated entry, stop loss, and take profit levels with risk-reward ratios
+- **News Analysis**: Fetches latest news, performs sentiment analysis, detects key events (earnings, product launches), and compares with peer stocks
 
 ## Project Structure
 
