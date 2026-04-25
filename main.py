@@ -100,8 +100,43 @@ def analyze_stock(symbol: str, source: str = "yahoo", period: str = "1y",
     print(f"  - Reward: ${entry_exit['reward']:.2f}")
     print(f"  - Risk/Reward Ratio: {entry_exit['risk_reward_ratio']:.2f}\n")
     
-    # Step 3: Fetch Latest News
-    print("Step 3: Fetching latest news...")
+    # Step 3: Momentum Analysis
+    print("Step 3: Performing momentum analysis...")
+    momentum = analyzer.calculate_momentum_indicators()
+    print(f"\n  Momentum Indicators:")
+    print(f"  - ROC (10-day): {momentum['roc_10'].iloc[-1]:.2f}%")
+    print(f"  - ROC (20-day): {momentum['roc_20'].iloc[-1]:.2f}%")
+    print(f"  - ROC (60-day): {momentum['roc_60'].iloc[-1]:.2f}%")
+    print(f"  - Momentum (10-day): {momentum['momentum_10'].iloc[-1]:.2f}")
+    print(f"  - Momentum (20-day): {momentum['momentum_20'].iloc[-1]:.2f}")
+    print(f"  - Williams %R (14): {momentum['williams_r'].iloc[-1]:.2f}")
+    print(f"  - CCI (20): {momentum['cci'].iloc[-1]:.2f}")
+    print(f"  - MFI (14): {momentum['mfi'].iloc[-1]:.2f}")
+    print(f"  - TSI: {momentum['tsi'].iloc[-1]:.2f}")
+    print(f"  - Price Acceleration: {momentum['price_acceleration'].iloc[-1]:.2f}")
+
+    print(f"\n  Volume Momentum:")
+    print(f"  - OBV: {momentum['obv'].iloc[-1]:,.0f}")
+    print(f"  - OBV SMA 20: {momentum['obv_sma20'].iloc[-1]:,.0f}")
+    obv_trend = "BULLISH" if momentum['obv'].iloc[-1] > momentum['obv_sma20'].iloc[-1] else "BEARISH"
+    print(f"  - OBV Trend: {obv_trend}")
+    print(f"  - Volume ROC (14-day): {momentum['volume_roc'].iloc[-1]:.2f}%")
+
+    print(f"\n  Multi-Timeframe Returns:")
+    for tf, ret in momentum['returns'].items():
+        print(f"  - {tf.upper()}: {ret:.2f}%")
+
+    print(f"\n  Divergence Analysis:")
+    print(f"  - RSI Divergence: {momentum['rsi_divergence'].upper()}")
+    print(f"  - MACD Divergence: {momentum['macd_divergence'].upper()}")
+
+    print(f"\n  Momentum Score: {momentum['momentum_score']} / 7")
+    for factor in momentum['momentum_factors']:
+        print(f"    - {factor}")
+    print(f"  Verdict: {momentum['momentum_verdict']}\n")
+
+    # Step 4: Fetch Latest News
+    print("Step 4: Fetching latest news...")
     news_scraper = NewsScraper()
     news_items = news_scraper.fetch_all_news(symbol, sources=['yahoo', 'google'], limit=5)
     
@@ -175,8 +210,8 @@ def analyze_stock(symbol: str, source: str = "yahoo", period: str = "1y",
     else:
         print("✓ No news items found or unable to fetch news\n")
     
-    # Step 4: Visualization
-    print("Step 4: Creating visualizations...")
+    # Step 5: Visualization
+    print("Step 5: Creating visualizations...")
     visualizer = StockVisualizer(data)
     
     # Create price chart
@@ -214,10 +249,23 @@ def analyze_stock(symbol: str, source: str = "yahoo", period: str = "1y",
         visualizer.save_chart(fig5, f"{output_dir}/{symbol}_support_resistance.png")
     else:
         plt.show()
+
+    # Create momentum charts
+    fig6 = visualizer.plot_momentum(momentum, title=f"{symbol} Momentum Analysis")
+    if save_charts:
+        visualizer.save_chart(fig6, f"{output_dir}/{symbol}_momentum.png")
+    else:
+        plt.show()
+
+    fig7 = visualizer.plot_momentum_returns(momentum, title=f"{symbol} Multi-Timeframe Returns")
+    if save_charts:
+        visualizer.save_chart(fig7, f"{output_dir}/{symbol}_momentum_returns.png")
+    else:
+        plt.show()
     
     print("✓ Visualizations created\n")
     
-    # Step 4: Save data
+    # Step 6: Save data
     if save_charts:
         data.to_csv(f"{output_dir}/{symbol}_data.csv")
         print(f"✓ Data saved to {output_dir}/{symbol}_data.csv\n")
@@ -227,7 +275,8 @@ def analyze_stock(symbol: str, source: str = "yahoo", period: str = "1y",
         'data': data,
         'indicators': indicators,
         'patterns': patterns,
-        'signals': signals
+        'signals': signals,
+        'momentum': momentum
     }
 
 

@@ -160,6 +160,76 @@ class TechnicalIndicators:
         }
     
     @staticmethod
+    def rate_of_change(data: pd.Series, period: int = 10) -> pd.Series:
+        """Rate of Change - measures percentage change over a given period"""
+        return ((data - data.shift(period)) / data.shift(period)) * 100
+
+    @staticmethod
+    def momentum_oscillator(data: pd.Series, period: int = 10) -> pd.Series:
+        """Momentum Oscillator - measures absolute price change over a given period"""
+        return data - data.shift(period)
+
+    @staticmethod
+    def williams_r(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+        """Williams %R - measures overbought/oversold levels relative to high-low range"""
+        highest_high = high.rolling(window=period).max()
+        lowest_low = low.rolling(window=period).min()
+        return -100 * ((highest_high - close) / (highest_high - lowest_low))
+
+    @staticmethod
+    def cci(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20) -> pd.Series:
+        """Commodity Channel Index - identifies cyclical trends"""
+        tp = (high + low + close) / 3
+        sma_tp = tp.rolling(window=period).mean()
+        mad = tp.rolling(window=period).apply(lambda x: np.mean(np.abs(x - np.mean(x))), raw=True)
+        return (tp - sma_tp) / (0.015 * mad)
+
+    @staticmethod
+    def obv(close: pd.Series, volume: pd.Series) -> pd.Series:
+        """On-Balance Volume - cumulative volume based on price direction"""
+        obv_values = [0]
+        for i in range(1, len(close)):
+            if close.iloc[i] > close.iloc[i - 1]:
+                obv_values.append(obv_values[-1] + volume.iloc[i])
+            elif close.iloc[i] < close.iloc[i - 1]:
+                obv_values.append(obv_values[-1] - volume.iloc[i])
+            else:
+                obv_values.append(obv_values[-1])
+        return pd.Series(obv_values, index=close.index)
+
+    @staticmethod
+    def money_flow_index(high: pd.Series, low: pd.Series, close: pd.Series,
+                         volume: pd.Series, period: int = 14) -> pd.Series:
+        """Money Flow Index - volume-weighted RSI"""
+        tp = (high + low + close) / 3
+        mf = tp * volume
+        pos_mf = pd.Series(0.0, index=close.index)
+        neg_mf = pd.Series(0.0, index=close.index)
+        for i in range(1, len(tp)):
+            if tp.iloc[i] > tp.iloc[i - 1]:
+                pos_mf.iloc[i] = mf.iloc[i]
+            else:
+                neg_mf.iloc[i] = mf.iloc[i]
+        pos_sum = pos_mf.rolling(window=period).sum()
+        neg_sum = neg_mf.rolling(window=period).sum()
+        mfr = pos_sum / neg_sum
+        return 100 - (100 / (1 + mfr))
+
+    @staticmethod
+    def tsi(close: pd.Series, long_period: int = 25, short_period: int = 13) -> pd.Series:
+        """True Strength Index - double-smoothed momentum"""
+        diff = close.diff()
+        double_smooth = diff.ewm(span=long_period, adjust=False).mean().ewm(span=short_period, adjust=False).mean()
+        double_smooth_abs = diff.abs().ewm(span=long_period, adjust=False).mean().ewm(span=short_period, adjust=False).mean()
+        return 100 * double_smooth / double_smooth_abs
+
+    @staticmethod
+    def price_acceleration(close: pd.Series, period: int = 10) -> pd.Series:
+        """Price Acceleration - second derivative of price (momentum of momentum)"""
+        mom = close - close.shift(period)
+        return mom - mom.shift(period)
+
+    @staticmethod
     def adx(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> Dict[str, pd.Series]:
         """
         ADX (Average Directional Index) - measures trend strength
@@ -473,6 +543,146 @@ class TechnicalAnalyzer:
             'adx': self.indicators.adx(high, low, close)
         }
     
+    def calculate_momentum_indicators(self) -> Dict[str, any]:
+        """
+        Calculate all momentum-specific indicators
+
+        Returns:
+            Dictionary with momentum indicators and scoring
+        """
+        close = self.data['Close']
+        high = self.data['High']
+        low = self.data['Low']
+        volume = self.data['Volume']
+
+        roc_10 = self.indicators.rate_of_change(close, 10)
+        roc_20 = self.indicators.rate_of_change(close, 20)
+        roc_60 = self.indicators.rate_of_change(close, 60)
+        mom_10 = self.indicators.momentum_oscillator(close, 10)
+        mom_20 = self.indicators.momentum_oscillator(close, 20)
+        w_r = self.indicators.williams_r(high, low, close, 14)
+        cci_20 = self.indicators.cci(high, low, close, 20)
+        obv_series = self.indicators.obv(close, volume)
+        mfi = self.indicators.money_flow_index(high, low, close, volume, 14)
+        tsi_val = self.indicators.tsi(close)
+        accel = self.indicators.price_acceleration(close, 10)
+        rsi = self.indicators.rsi(close, 14)
+        macd_data = self.indicators.macd(close)
+        vol_roc = self.indicators.rate_of_change(volume, 14)
+
+        obv_sma20 = obv_series.rolling(20).mean()
+
+        # Multi-timeframe returns
+        returns = {}
+        for label, offset in [('1w', 5), ('1m', 21), ('3m', 63), ('6m', 126)]:
+            if len(close) > offset:
+                returns[label] = ((close.iloc[-1] / close.iloc[-offset]) - 1) * 100
+            else:
+                returns[label] = 0.0
+        returns['1y'] = ((close.iloc[-1] / close.iloc[0]) - 1) * 100
+
+        # Divergence analysis (20-day)
+        if len(close) > 20:
+            price_trend = close.iloc[-1] - close.iloc[-20]
+            rsi_trend = rsi.iloc[-1] - rsi.iloc[-20]
+            macd_trend = macd_data['macd'].iloc[-1] - macd_data['macd'].iloc[-20]
+
+            if price_trend > 0 and rsi_trend < 0:
+                rsi_divergence = 'bearish'
+            elif price_trend < 0 and rsi_trend > 0:
+                rsi_divergence = 'bullish'
+            else:
+                rsi_divergence = 'none'
+
+            if price_trend > 0 and macd_trend < 0:
+                macd_divergence = 'bearish'
+            elif price_trend < 0 and macd_trend > 0:
+                macd_divergence = 'bullish'
+            else:
+                macd_divergence = 'none'
+        else:
+            rsi_divergence = 'none'
+            macd_divergence = 'none'
+
+        # Momentum scoring (-7 to +7)
+        score = 0
+        factors = []
+        if rsi.iloc[-1] > 70:
+            score -= 1
+            factors.append('RSI overbought (-1)')
+        elif rsi.iloc[-1] < 30:
+            score += 1
+            factors.append('RSI oversold (+1)')
+        if roc_10.iloc[-1] > 5:
+            score += 1
+            factors.append('Strong 10-day ROC (+1)')
+        elif roc_10.iloc[-1] < -5:
+            score -= 1
+            factors.append('Weak 10-day ROC (-1)')
+        if obv_series.iloc[-1] > obv_sma20.iloc[-1]:
+            score += 1
+            factors.append('OBV above SMA (+1)')
+        else:
+            score -= 1
+            factors.append('OBV below SMA (-1)')
+        if macd_data['histogram'].iloc[-1] > 0:
+            score += 1
+            factors.append('MACD histogram positive (+1)')
+        else:
+            score -= 1
+            factors.append('MACD histogram negative (-1)')
+        if w_r.iloc[-1] > -20:
+            score -= 1
+            factors.append('Williams %R overbought (-1)')
+        elif w_r.iloc[-1] < -80:
+            score += 1
+            factors.append('Williams %R oversold (+1)')
+        if mfi.iloc[-1] > 80:
+            score -= 1
+            factors.append('MFI overbought (-1)')
+        elif mfi.iloc[-1] < 20:
+            score += 1
+            factors.append('MFI oversold (+1)')
+        if rsi_divergence == 'bearish':
+            score -= 1
+            factors.append('RSI bearish divergence (-1)')
+        elif rsi_divergence == 'bullish':
+            score += 1
+            factors.append('RSI bullish divergence (+1)')
+
+        if score >= 3:
+            verdict = 'STRONG BULLISH MOMENTUM'
+        elif score >= 1:
+            verdict = 'MODERATE BULLISH MOMENTUM'
+        elif score == 0:
+            verdict = 'NEUTRAL MOMENTUM'
+        elif score >= -2:
+            verdict = 'MODERATE BEARISH MOMENTUM'
+        else:
+            verdict = 'STRONG BEARISH MOMENTUM'
+
+        return {
+            'roc_10': roc_10,
+            'roc_20': roc_20,
+            'roc_60': roc_60,
+            'momentum_10': mom_10,
+            'momentum_20': mom_20,
+            'williams_r': w_r,
+            'cci': cci_20,
+            'obv': obv_series,
+            'obv_sma20': obv_sma20,
+            'mfi': mfi,
+            'tsi': tsi_val,
+            'price_acceleration': accel,
+            'volume_roc': vol_roc,
+            'returns': returns,
+            'rsi_divergence': rsi_divergence,
+            'macd_divergence': macd_divergence,
+            'momentum_score': score,
+            'momentum_factors': factors,
+            'momentum_verdict': verdict,
+        }
+
     def detect_patterns(self) -> List[Dict[str, any]]:
         """
         Detect all chart patterns
