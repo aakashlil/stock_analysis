@@ -6,3 +6,5 @@ yfinance
 jupyter
 requests
 scipy
+beautifulsoup4
+feedparser

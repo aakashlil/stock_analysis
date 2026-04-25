@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from scripts.data_fetcher import DataFetcher
 from scripts.technical_analysis import TechnicalAnalyzer
 from scripts.visualization import StockVisualizer
+from scripts.news_scraper import NewsScraper
 
 
 def analyze_stock(symbol: str, source: str = "yahoo", period: str = "1y", 
@@ -97,8 +98,83 @@ def analyze_stock(symbol: str, source: str = "yahoo", period: str = "1y",
     print(f"  - Reward: ${entry_exit['reward']:.2f}")
     print(f"  - Risk/Reward Ratio: {entry_exit['risk_reward_ratio']:.2f}\n")
     
-    # Step 3: Visualization
-    print("Step 3: Creating visualizations...")
+    # Step 3: Fetch Latest News
+    print("Step 3: Fetching latest news...")
+    news_scraper = NewsScraper()
+    news_items = news_scraper.fetch_all_news(symbol, sources=['yahoo', 'google'], limit=5)
+    
+    if news_items:
+        print(f"✓ Found {len(news_items)} news items")
+        news_scraper.display_news(news_items)
+        
+        # Fetch and analyze full articles
+        print(f"\n{'='*60}")
+        print("Fetching and Analyzing Full Articles")
+        print(f"{'='*60}\n")
+        analyzed_articles = news_scraper.analyze_full_articles(news_items, max_articles=3)
+        
+        if analyzed_articles:
+            print(f"✓ Analyzed {len(analyzed_articles)} articles\n")
+            for i, article in enumerate(analyzed_articles, 1):
+                print(f"{i}. {article['title']}")
+                print(f"   Source: {article['source']}")
+                print(f"   Date: {article['date']}")
+                print(f"   Summary: {article['summary']}")
+                print()
+        
+        # Generate and display news summary
+        print(f"{'='*60}")
+        print("News Analysis Summary")
+        print(f"{'='*60}\n")
+        news_summary = news_scraper.generate_news_summary(news_items)
+        print(f"Summary: {news_summary['summary']}")
+        print(f"Sentiment: {news_summary['sentiment'].upper()}")
+        print(f"Key Themes: {', '.join(news_summary['key_themes']) if news_summary['key_themes'] else 'None identified'}")
+        
+        # Display key events
+        key_events = news_summary['key_events']
+        events_found = False
+        for event_type, event_list in key_events.items():
+            if event_list:
+                events_found = True
+                print(f"\n{event_type.replace('_', ' ').title()}:")
+                for event in event_list[:3]:  # Show up to 3 events per category
+                    if isinstance(event, dict):
+                        print(f"  • {event['title']}")
+                        print(f"    Date: {event['date']}")
+                        print(f"    Source: {event['source']}")
+                    else:
+                        print(f"  • {event}")
+        
+        if not events_found:
+            print("\nNo specific key events detected in recent news.")
+        
+        print(f"\nConclusion: {news_summary['conclusion']}\n")
+        
+        # Compare with other mentioned stocks
+        print(f"{'='*60}")
+        print("Stock Comparison with Mentioned Peers")
+        print(f"{'='*60}\n")
+        stock_comparison = news_scraper.compare_mentioned_stocks(symbol, news_items, max_stocks=5)
+        print(stock_comparison['comparison'])
+        print()
+        
+        # Compare sentiment across stocks
+        print(f"{'='*60}")
+        print("Sentiment Comparison Across Stocks")
+        print(f"{'='*60}\n")
+        mentioned_symbols = [s['symbol'] for s in stock_comparison['mentioned_stocks'] if s['symbol'] != 'N/A']
+        if mentioned_symbols:
+            sentiment_comparison = news_scraper.compare_sentiment_across_stocks(symbol, mentioned_symbols)
+            print(sentiment_comparison['comparison'])
+            print()
+        else:
+            print("No valid stock symbols found for sentiment comparison.\n")
+    else:
+        print("✓ No news items found or unable to fetch news\n")
+    
+    # Step 4: Visualization
+    print("Step 4: Creating visualizations...")
     visualizer = StockVisualizer(data)
     
     # Create price chart
