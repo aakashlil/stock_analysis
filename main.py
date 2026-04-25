@@ -14,6 +14,8 @@ from scripts.data_fetcher import DataFetcher
 from scripts.technical_analysis import TechnicalAnalyzer
 from scripts.visualization import StockVisualizer
 from scripts.news_scraper import NewsScraper
+from scripts.fundamental_analysis import FundamentalAnalyzer
+from scripts.stock_comparison import StockComparator
 
 
 def analyze_stock(symbol: str, source: str = "yahoo", period: str = "1y", 
@@ -326,14 +328,100 @@ def main():
     print("="*60 + "\n")
 
 
+def fundamental_analysis(symbol: str):
+    """
+    Perform fundamental analysis for a stock
+    
+    Args:
+        symbol: Stock symbol (e.g., 'NVDA', 'MU')
+    """
+    analyzer = FundamentalAnalyzer(symbol)
+    return analyzer.print_report()
+
+
+def compare_fundamentals(symbols: list):
+    """
+    Compare fundamentals of multiple stocks head-to-head
+    
+    Args:
+        symbols: List of stock symbols to compare (e.g., ['NVDA', 'MU'])
+    """
+    comparator = StockComparator(symbols)
+    metrics = comparator.print_comparison()
+    scorecard = comparator.determine_winner()
+    return {'metrics': metrics, 'scorecard': scorecard}
+
+
+def full_analysis(symbol: str, source: str = "yahoo", period: str = "1y",
+                  save_charts: bool = True, output_dir: str = "results"):
+    """
+    Perform complete analysis: technical + fundamental + news
+    
+    Args:
+        symbol: Stock symbol
+        source: Data source
+        period: Time period
+        save_charts: Whether to save charts
+        output_dir: Output directory
+    """
+    # Run technical + news analysis
+    result = analyze_stock(symbol, source=source, period=period,
+                           save_charts=save_charts, output_dir=output_dir)
+    
+    # Run fundamental analysis
+    print("\nStep 5: Performing fundamental analysis...")
+    fund_report = fundamental_analysis(symbol)
+    
+    if result:
+        result['fundamentals'] = fund_report
+    
+    return result
+
+
+def print_usage():
+    """Print usage instructions."""
+    print("""
+Stock Analysis Tool - Usage:
+
+  python main.py <symbol> [source] [period]         Technical + News analysis
+  python main.py fundamental <symbol>               Fundamental/earnings analysis
+  python main.py compare <sym1> <sym2> [sym3...]     Compare stocks fundamentals
+  python main.py full <symbol> [source] [period]     Full analysis (tech + fundamental + news)
+
+Examples:
+  python main.py NVDA yahoo 1y                       Technical analysis for Nvidia
+  python main.py fundamental MU                      Micron earnings & growth analysis
+  python main.py compare NVDA MU INTC                Compare three stocks
+  python main.py full NVDA yahoo 1y                  Complete analysis for Nvidia
+""")
+
+
 if __name__ == "__main__":
-    # Check if command line arguments are provided
     if len(sys.argv) > 1:
-        symbol = sys.argv[1]
-        source = sys.argv[2] if len(sys.argv) > 2 else "yahoo"
-        period = sys.argv[3] if len(sys.argv) > 3 else "1y"
+        command = sys.argv[1].lower()
         
-        analyze_stock(symbol, source=source, period=period, save_charts=True)
+        if command == 'fundamental' and len(sys.argv) > 2:
+            symbol = sys.argv[2].upper()
+            fundamental_analysis(symbol)
+        
+        elif command == 'compare' and len(sys.argv) > 3:
+            symbols = [s.upper() for s in sys.argv[2:]]
+            compare_fundamentals(symbols)
+        
+        elif command == 'full' and len(sys.argv) > 2:
+            symbol = sys.argv[2].upper()
+            source = sys.argv[3] if len(sys.argv) > 3 else "yahoo"
+            period = sys.argv[4] if len(sys.argv) > 4 else "1y"
+            full_analysis(symbol, source=source, period=period, save_charts=True)
+        
+        elif command in ('help', '--help', '-h'):
+            print_usage()
+        
+        else:
+            # Original behavior: treat first arg as symbol
+            symbol = sys.argv[1].upper()
+            source = sys.argv[2] if len(sys.argv) > 2 else "yahoo"
+            period = sys.argv[3] if len(sys.argv) > 3 else "1y"
+            analyze_stock(symbol, source=source, period=period, save_charts=True)
     else:
-        # Run examples
-        main()
+        print_usage()
