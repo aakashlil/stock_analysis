@@ -5,6 +5,7 @@ Creates professional charts for stock analysis
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.gridspec as gridspec
 import seaborn as sns
 import pandas as pd
 import numpy as np
@@ -369,6 +370,153 @@ class StockVisualizer:
         
         return fig
     
+    def plot_momentum(self, momentum_indicators: Dict[str, any],
+                      title: str = "Momentum Analysis") -> plt.Figure:
+        """
+        Plot momentum indicators: price with MAs, ROC, RSI, Williams %R,
+        MACD histogram, OBV, and MFI.
+
+        Args:
+            momentum_indicators: Dictionary from TechnicalAnalyzer.calculate_momentum_indicators()
+            title: Chart title
+
+        Returns:
+            matplotlib Figure object
+        """
+        from scripts.technical_analysis import TechnicalIndicators
+        rsi = TechnicalIndicators.rsi(self.close, 14)
+        macd_data = TechnicalIndicators.macd(self.close)
+
+        fig = plt.figure(figsize=(16, 24))
+        gs = gridspec.GridSpec(7, 1, height_ratios=[2, 1, 1, 1, 1, 1, 1], hspace=0.3)
+
+        # 1. Price with MAs
+        ax1 = fig.add_subplot(gs[0])
+        ax1.plot(self.data.index, self.close, label='Price', color='black', linewidth=1.5)
+        sma20 = self.close.rolling(20).mean()
+        sma50 = self.close.rolling(50).mean()
+        ax1.plot(self.data.index, sma20, label='SMA 20', color='blue', alpha=0.7)
+        ax1.plot(self.data.index, sma50, label='SMA 50', color='red', alpha=0.7)
+        ax1.set_title(title, fontsize=14, fontweight='bold')
+        ax1.set_ylabel('Price ($)')
+        ax1.legend(loc='upper left')
+        ax1.grid(True, alpha=0.3)
+
+        # 2. ROC
+        ax2 = fig.add_subplot(gs[1], sharex=ax1)
+        ax2.plot(self.data.index, momentum_indicators['roc_10'], label='ROC 10', color='blue')
+        ax2.plot(self.data.index, momentum_indicators['roc_20'], label='ROC 20', color='orange')
+        ax2.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+        ax2.axhline(y=5, color='red', linestyle='--', alpha=0.5)
+        ax2.axhline(y=-5, color='green', linestyle='--', alpha=0.5)
+        ax2.set_ylabel('ROC (%)')
+        ax2.set_title('Rate of Change')
+        ax2.legend(loc='upper left', fontsize=8)
+        ax2.grid(True, alpha=0.3)
+
+        # 3. RSI
+        ax3 = fig.add_subplot(gs[2], sharex=ax1)
+        ax3.plot(self.data.index, rsi, label='RSI (14)', color='purple')
+        ax3.axhline(y=70, color='red', linestyle='--', alpha=0.7)
+        ax3.axhline(y=30, color='green', linestyle='--', alpha=0.7)
+        ax3.axhline(y=50, color='gray', linestyle=':', alpha=0.5)
+        ax3.fill_between(self.data.index, 70, 100, alpha=0.1, color='red')
+        ax3.fill_between(self.data.index, 0, 30, alpha=0.1, color='green')
+        ax3.set_ylabel('RSI')
+        ax3.set_title('RSI (14)')
+        ax3.set_ylim(0, 100)
+        ax3.grid(True, alpha=0.3)
+
+        # 4. Williams %R
+        ax4 = fig.add_subplot(gs[3], sharex=ax1)
+        ax4.plot(self.data.index, momentum_indicators['williams_r'], label='Williams %R', color='brown')
+        ax4.axhline(y=-20, color='red', linestyle='--', alpha=0.7)
+        ax4.axhline(y=-80, color='green', linestyle='--', alpha=0.7)
+        ax4.fill_between(self.data.index, -20, 0, alpha=0.1, color='red')
+        ax4.fill_between(self.data.index, -100, -80, alpha=0.1, color='green')
+        ax4.set_ylabel('Williams %R')
+        ax4.set_title('Williams %R (14)')
+        ax4.grid(True, alpha=0.3)
+
+        # 5. MACD Histogram
+        ax5 = fig.add_subplot(gs[4], sharex=ax1)
+        colors = ['green' if v >= 0 else 'red' for v in macd_data['histogram']]
+        ax5.bar(self.data.index, macd_data['histogram'], color=colors, alpha=0.7)
+        ax5.plot(self.data.index, macd_data['macd'], label='MACD', color='blue', linewidth=1)
+        ax5.plot(self.data.index, macd_data['signal'], label='Signal', color='orange', linewidth=1)
+        ax5.set_ylabel('MACD')
+        ax5.set_title('MACD')
+        ax5.legend(loc='upper left', fontsize=8)
+        ax5.grid(True, alpha=0.3)
+
+        # 6. OBV
+        ax6 = fig.add_subplot(gs[5], sharex=ax1)
+        ax6.plot(self.data.index, momentum_indicators['obv'], label='OBV', color='teal')
+        ax6.plot(self.data.index, momentum_indicators['obv_sma20'], label='OBV SMA 20',
+                 color='orange', linestyle='--')
+        ax6.set_ylabel('OBV')
+        ax6.set_title('On-Balance Volume')
+        ax6.legend(loc='upper left', fontsize=8)
+        ax6.grid(True, alpha=0.3)
+
+        # 7. MFI
+        ax7 = fig.add_subplot(gs[6], sharex=ax1)
+        ax7.plot(self.data.index, momentum_indicators['mfi'], label='MFI (14)', color='darkgreen')
+        ax7.axhline(y=80, color='red', linestyle='--', alpha=0.7)
+        ax7.axhline(y=20, color='green', linestyle='--', alpha=0.7)
+        ax7.fill_between(self.data.index, 80, 100, alpha=0.1, color='red')
+        ax7.fill_between(self.data.index, 0, 20, alpha=0.1, color='green')
+        ax7.set_ylabel('MFI')
+        ax7.set_title('Money Flow Index')
+        ax7.set_ylim(0, 100)
+        ax7.grid(True, alpha=0.3)
+
+        return fig
+
+    def plot_momentum_returns(self, momentum_indicators: Dict[str, any],
+                              title: str = "Multi-Timeframe Returns") -> plt.Figure:
+        """
+        Plot multi-timeframe returns and ROC across periods.
+
+        Args:
+            momentum_indicators: Dictionary from TechnicalAnalyzer.calculate_momentum_indicators()
+            title: Chart title
+
+        Returns:
+            matplotlib Figure object
+        """
+        from scripts.technical_analysis import TechnicalIndicators
+        returns = momentum_indicators['returns']
+        timeframes = list(returns.keys())
+        return_vals = list(returns.values())
+
+        roc_periods = [5, 10, 20, 40, 60]
+        roc_vals = [TechnicalIndicators.rate_of_change(self.close, p).iloc[-1] for p in roc_periods]
+
+        fig, (ax_ret, ax_roc) = plt.subplots(1, 2, figsize=(14, 5))
+
+        colors_ret = ['green' if v > 0 else 'red' for v in return_vals]
+        ax_ret.barh(timeframes, return_vals, color=colors_ret, alpha=0.8)
+        ax_ret.set_xlabel('Return (%)')
+        ax_ret.set_title(f'{title}')
+        ax_ret.axvline(x=0, color='black', linewidth=0.5)
+        for i, v in enumerate(return_vals):
+            ax_ret.text(v + (1 if v > 0 else -1), i, f'{v:.1f}%', va='center', fontsize=10)
+        ax_ret.grid(True, alpha=0.3)
+
+        colors_roc = ['green' if v > 0 else 'red' for v in roc_vals]
+        roc_labels = [f'{p}d' for p in roc_periods]
+        ax_roc.barh(roc_labels, roc_vals, color=colors_roc, alpha=0.8)
+        ax_roc.set_xlabel('ROC (%)')
+        ax_roc.set_title('Rate of Change Across Periods')
+        ax_roc.axvline(x=0, color='black', linewidth=0.5)
+        for i, v in enumerate(roc_vals):
+            ax_roc.text(v + (0.5 if v > 0 else -0.5), i, f'{v:.1f}%', va='center', fontsize=10)
+        ax_roc.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        return fig
+
     def save_chart(self, fig: plt.Figure, filename: str, dpi: int = 300):
         """
         Save chart to file
